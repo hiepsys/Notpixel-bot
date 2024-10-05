@@ -119,16 +119,6 @@ async def process() -> None:
             else:
                 break
         if ans == "y":
-            # while True:
-            #     thread = input("Nhập số luồng chạy: ")
-
-            #     if not thread.isdigit():
-            #         logger.warning("Phải nhập một số")
-            #     elif int(thread) > 16:
-            #         logger.warning("Số luồng nhỏ hơn 16")
-            #     else:
-            #         thread = int(thread)
-            #         break
             with open("data.txt", "r") as f:
                 query_ids = [line.strip() for line in f.readlines()]
             proxies = get_proxies()

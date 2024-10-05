@@ -65,13 +65,18 @@ class GPMLoginAPI(object):
             print(e)
             return False
 
-    def Start(self, profileId: str, addinationArgs: str = ''):
+    def Start(self, profileId: str, addinationArgs: str = '', win_pos: str = '', win_size: str = '', win_scale: str = '1'):
         try:
             # Make api url
             url = f"{self._apiUrl}{self.API_START_PATH}{profileId}"
-            if(addinationArgs != ''):
+            if(win_scale):
+                url += f"?win_scale={win_scale}"
+            if(addinationArgs):
                 url += f"&addination_args={addinationArgs}"
-            
+            if(win_pos):
+                url += f"&win_pos={win_pos}"
+            if(win_size):
+                url += f"&win_size={win_size}"
             # call api
             resp = requests.get(url)
             return resp.json()

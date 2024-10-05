@@ -7,8 +7,12 @@ class Settings(BaseSettings):
     API_ID: int
     API_HASH: str
 
+    MULTI_TAPPERS: int = 5
+    BOT_NAME: str = "notpixel"
 
-    REF_LINK: str = "https://t.me/notpixel/app?startapp=f6624523270"
+    REF_LINK: str = "https://t.me/notpixel/app?startapp=f5440629352"
+    CHANNEL_REF_LINK: str = "https://web.telegram.org/k/#@lhsdevlink"
+    GPM_API_URL: str = "http://127.0.0.1:19995"
     X3POINTS: bool = True
     AUTO_UPGRADE_PAINT_REWARD: bool = True
     AUTO_UPGRADE_RECHARGE_SPEED:bool = True
@@ -16,6 +20,7 @@ class Settings(BaseSettings):
     AUTO_TASK: bool = True
 
     DELAY_EACH_ACCOUNT: list[int] = [10,15]
+    DELAY_AFTER_DONE_TAPPER: list[int] = [1200,1756]
     USE_PROXY_FROM_FILE: bool = False
 
 
