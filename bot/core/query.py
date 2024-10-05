@@ -49,14 +49,6 @@ class Tapper:
         self.balance = 0
         self.checked = [False] * 5
         self.multi_thread = multi_thread
-        self.session = None
-
-    async def create_session(self):
-        self.session = aiohttp.ClientSession(headers=headers)
-
-    async def close_session(self):
-        if self.session:
-            await self.session.close()
 
     async def check_proxy(self, http_client: aiohttp.ClientSession, proxy: Proxy):
         try:
@@ -149,8 +141,8 @@ class Tapper:
                 "pixelId": data[1]
             }
         async with session.post("https://notpx.app/api/v1/repaint/start", headers=headers, json=payload) as response:
-            response_json = await response.json()
             if response.status == 200:
+                response_json = await response.json()
                 if i % 2 == 0:
                     logger.success(
                         f"{self.session_name} | <green>Đã vẽ <cyan>{data[1]}</cyan> thành công với màu mới: <cyan>{data[0]}</cyan> | Đã kiếm được <light-blue>{int(response_json['balance']) - int(self.balance)}</light-blue> | Số dư: <light-blue>{response_json['balance']}</light-blue> | Còn lại: <yellow>{chance_left}</yellow></green>")
@@ -159,11 +151,11 @@ class Tapper:
                     logger.success(
                         f"{self.session_name} | <green>Đã vẽ <cyan>{data[1]}</cyan> thành công với màu mới: <cyan>{data1[0]}</cyan> | Đã kiếm được <light-blue>{int(response_json['balance']) - int(self.balance)}</light-blue> | Số dư: <light-blue>{response_json['balance']}</light-blue> | Còn lại: <yellow>{chance_left}</yellow></green>")
                     self.balance = int(response_json['balance'])
-            elif response.status != 200:
-                if response_json.get('error') == "insufficient charges amount":
+            else:
+                if await response.json()['error'] == "insufficient charges amount":
                     logger.warning(f"{self.session_name} | <yellow>Hết lượt vẽ</yellow>")
                 else:
-                    logger.warning(f"{self.session_name} | <yellow>{response_json.get('error')}</yellow>")
+                    logger.warning(f"{self.session_name} | <yellow>{await response.json()['error']}</yellow>")
 
 
     # def auto_task(self, session: cloudscraper.CloudScraper):
@@ -197,106 +189,110 @@ class Tapper:
                 logger.warning(f"{self.session_name} | <yellow>Failed to claim px from mining: {await response.text()}</yellow>")
 
     async def get_data_async(self, query: str):
-        loop = asyncio.get_event_loop()
-        with ThreadPoolExecutor() as pool:
-            result = await loop.run_in_executor(pool, get_data, query)
+    # Sử dụng asyncio.to_thread thay vì ThreadPoolExecutor để xử lý hàm đồng bộ trong thread khác
+        result = await asyncio.to_thread(get_data, query)
         return result
 
     async def run(self, proxy: str | None) -> None:
-        await self.create_session()
         access_token_created_time = 0
         proxy_conn = ProxyConnector().from_url(proxy) if proxy else None
 
-        headers["User-Agent"] = generate_random_user_agent(device_type='android', browser_type='chrome')
-        http_client = CloudflareScraper(headers=headers, connector=proxy_conn)
-        if proxy:
-            proxy_check = await self.check_proxy(http_client=http_client, proxy=proxy)
-            if proxy_check:
-                proxy_type = proxy.split(':')[0]
-                self.session.proxies = {
-                    proxy_type: proxy
-                }
-                logger.info(f"{self.session_name} | bind with proxy ip: {proxy}")     
+        # Sử dụng async with cho session và CloudflareScraper
+        async with aiohttp.ClientSession(headers=headers) as session:
+            headers["User-Agent"] = generate_random_user_agent(device_type='android', browser_type='chrome')
+            async with CloudflareScraper(headers=headers, connector=proxy_conn) as http_client:
 
-        token_live_time = randint(1000, 1500)
-        try:
-            if time() - access_token_created_time >= token_live_time:
-                processed_query = await self.get_data_async(self.query)
-                headers['Authorization'] = f"initData {processed_query}"
-                access_token_created_time = time()
+                # Kiểm tra và thiết lập proxy
+                if proxy:
+                    proxy_check = await self.check_proxy(http_client=http_client, proxy=proxy)
+                    if proxy_check:
+                        proxy_type = proxy.split(':')[0]
+                        session.proxies = {proxy_type: proxy}
+                        logger.info(f"{self.session_name} | bind with proxy ip: {proxy}")
+
                 token_live_time = randint(1000, 1500)
-                
 
-            if await self.login(self.session):
-                user = await self.get_user_data(self.session)
-                if user:
-                    self.maxtime = user['maxMiningTime']
-                    self.fromstart = user['fromStart']
-                    self.balance = int(user['userBalance'])
-                    
-                    logger.info(
-                        f"{self.session_name} | Pixel Balance: <light-blue>{int(user['userBalance'])}</light-blue> | Pixel available to paint: <cyan>{user['charges']}</cyan>")
-                    
-                    if int(user['charges']) > 0:
-                        # print("starting to paint 1")
-                        total_chance = int(user['charges'])
-                        i = 0
-                        data = self.get_cor()
-                        while total_chance > 0:
-                            total_chance -= 1
-                            i += 1
-                            if settings.X3POINTS:
-                                await self.repaintV2(self.session, total_chance, i, data)
-                            else:
-                                await self.repaint(self.session, total_chance)
-                            sleep_ = random.uniform(1, 3)
-                            logger.info(f"{self.session_name} | Nghỉ <cyan>{sleep_}</cyan> trước khi tiếp tục...")
-                            await asyncio.sleep(sleep_)
-                                                    
-                    r = random.uniform(2, 4)
-                    if float(self.fromstart) >= self.maxtime / r:
-                        await self.claimpx(self.session)
-                        await asyncio.sleep(random.uniform(2, 5))
-                    if settings.AUTO_TASK:
-                        async with self.session.get("https://notpx.app/api/v1/mining/task/check/x?name=notpixel", headers=headers) as response:
-                            if response.status == 200:
-                                response_json = await response.json()
-                                if response_json['x:notpixel'] and self.checked[1] is False:
-                                    self.checked[1] = True
-                                    logger.success("<green>Task Not pixel on x completed!</green>")
+                try:
+                    # Kiểm tra thời gian sống của token trước khi gọi API
+                    if time() - access_token_created_time >= token_live_time:
+                        processed_query = await self.get_data_async(self.query)
+                        headers['Authorization'] = f"initData {processed_query}"
+                        access_token_created_time = time()
+                        token_live_time = randint(1000, 1500)
 
-                        async with self.session.get("https://notpx.app/api/v1/mining/task/check/x?name=notcoin", headers=headers) as response:
-                            if response.status == 200:
-                                response_json = await response.json()
-                                if response_json['x:notcoin'] and self.checked[2] is False:
-                                    self.checked[2] = True
-                                    logger.success("<green>Task Not coin on x completed!</green>")
+                    # Login và lấy dữ liệu user
+                    if await self.login(session):
+                        user = await self.get_user_data(session)
+                        if user:
+                            await self.process_user(session, user)
+                        else:
+                            logger.warning(f"{self.session_name} | <yellow>Failed to get user data!</yellow>")
+                    else:
+                        logger.warning(f"invalid query: <yellow>{self.query}</yellow>")
 
-                        async with self.session.get("https://notpx.app/api/v1/mining/task/check/paint20pixels", headers=headers) as response:
-                            if response.status == 200:
-                                response_json = await response.json()
-                                if response_json['paint20pixels'] and self.checked[3] is False:
-                                    self.checked[3] = True
-                                    logger.success("<green>Task paint 20 pixels completed!</green>")
+                except InvalidSession as error:
+                    raise error
+                except Exception as error:
+                    logger.error(f"{self.session_name} | Unknown error: {error}")
+                    await asyncio.sleep(delay=randint(5, 10))
 
-                    if settings.AUTO_UPGRADE_PAINT_REWARD:
-                        await self.auto_upgrade_paint(self.session)
-                    if settings.AUTO_UPGRADE_RECHARGE_SPEED:
-                        await self.auto_upgrade_recharge_speed(self.session)
-                    if settings.AUTO_UPGRADE_RECHARGE_ENERGY:
-                        await self.auto_upgrade_energy_limit(self.session)
+    async def process_user(self, session, user):
+        self.maxtime = user['maxMiningTime']
+        self.fromstart = user['fromStart']
+        self.balance = int(user['userBalance'])
 
-                else:
-                    logger.warning(f"{self.session_name} | <yellow>Failed to get user data!</yellow>")
+        logger.info(
+            f"{self.session_name} | Pixel Balance: <light-blue>{self.balance}</light-blue> | Pixel available to paint: <cyan>{user['charges']}</cyan>")
+
+        if int(user['charges']) > 0:
+            await self.handle_painting(session, user['charges'])
+
+        await self.handle_claim(session)
+        await self.check_tasks(session)
+        await self.auto_upgrade_tasks(session)
+
+    async def handle_painting(self, session, total_chance):
+        i = 0
+        data = self.get_cor()
+        while total_chance > 0:
+            total_chance -= 1
+            i += 1
+            if settings.X3POINTS:
+                await self.repaintV2(session, total_chance, i, data)
             else:
-                logger.warning(f"invaild query: <yellow>{self.query}</yellow>")
-            await self.close_session()
-            await http_client.close()
-        except InvalidSession as error:
-            raise error
-        except Exception as error:
-            logger.error(f"{self.session_name} | Unknown error: {error}")
-            await asyncio.sleep(delay=randint(5, 10))
+                await self.repaint(session, total_chance)
+            # sleep_ = random.uniform(1, 3)
+            # logger.info(f"{self.session_name} | Nghỉ <cyan>{sleep_}</cyan> trước khi tiếp tục...")
+            # await asyncio.sleep(sleep_)
+
+    async def handle_claim(self, session):
+        r = random.uniform(2, 4)
+        if float(self.fromstart) >= self.maxtime / r:
+            await self.claimpx(session)
+            await asyncio.sleep(random.uniform(2, 5))
+
+    async def check_tasks(self, session):
+        if settings.AUTO_TASK:
+            task_urls = [
+                ("https://notpx.app/api/v1/mining/task/check/x?name=notpixel", 1, "Task Not pixel on x completed!"),
+                ("https://notpx.app/api/v1/mining/task/check/x?name=notcoin", 2, "Task Not coin on x completed!"),
+                ("https://notpx.app/api/v1/mining/task/check/paint20pixels", 3, "Task paint 20 pixels completed!")
+            ]
+            for url, index, success_msg in task_urls:
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        response_json = await response.json()
+                        if response_json.get(f'x:notpixel', False) and not self.checked[index]:
+                            self.checked[index] = True
+                            logger.success(f"<green>{success_msg}</green>")
+
+    async def auto_upgrade_tasks(self, session):
+        if settings.AUTO_UPGRADE_PAINT_REWARD:
+            await self.auto_upgrade_paint(session)
+        if settings.AUTO_UPGRADE_RECHARGE_SPEED:
+            await self.auto_upgrade_recharge_speed(session)
+        if settings.AUTO_UPGRADE_RECHARGE_ENERGY:
+            await self.auto_upgrade_energy_limit(session)
 
 async def run_query_tapper(query: str, name: str, proxy: str | None):
     try:
