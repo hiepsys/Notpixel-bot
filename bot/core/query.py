@@ -2,10 +2,9 @@ import asyncio
 import random
 import json
 from itertools import cycle
-from time import time
-
+from tenacity import retry, stop_after_attempt, wait_fixed
 import aiohttp
-# import requests
+import aiofiles
 from aiocfscrape import CloudflareScraper
 from aiohttp_proxy import ProxyConnector
 from better_proxy import Proxy
@@ -60,15 +59,24 @@ class Tapper:
             logger.error(f"{self.session_name} | Proxy: {proxy} | Error: {error}")
             return False
 
+    @retry(stop=stop_after_attempt(3), wait=wait_fixed(5))
     async def login(self, session: aiohttp.ClientSession):
-        async with session.get("https://notpx.app/api/v1/users/me", headers=headers) as response:
-            if response.status == 200:
-                logger.success(f"{self.session_name} | <green>Logged in.</green>")
-                return True
-            else:
-                print(await response.text())
-                logger.warning(f"{self.session_name} | <red>Failed to login</red>")
-                return False
+        try:
+            async with session.get("https://notpx.app/api/v1/users/me", 
+                                   headers=headers, 
+                                   timeout=aiohttp.ClientTimeout(total=30)) as response:  # Tăng timeout lên 30 giây
+                if response.status == 200:
+                    logger.success(f"{self.session_name} | <green>Đã đăng nhập thành công.</green>")
+                    return True
+                else:
+                    logger.warning(f"{self.session_name} | <red>Đăng nhập thất bại: {await response.text()}</red>")
+                    return False
+        except asyncio.TimeoutError:
+            logger.error(f"{self.session_name} | <red>Đăng nhập bị timeout. Thử lại...</red>")
+            raise  # Raise lỗi để retry mechanism có thể bắt và thử lại
+        except Exception as e:
+            logger.error(f"{self.session_name} | <red>Lỗi khi đăng nhập: {str(e)}</red>")
+            raise  # Raise lỗi để retry mechanism có thể bắt và thử lại
 
     async def get_user_data(self, session: aiohttp.ClientSession):
         async with session.get("https://notpx.app/api/v1/mining/status", headers=headers) as response:
@@ -76,7 +84,7 @@ class Tapper:
             if response.status == 200:
                 return response_json
             else:
-                logger.warning(f"{self.session_name} | <red>Failed to get user data: {response_json}</red>")
+                logger.warning(f"{self.session_name} | <red>Không thể lấy dữ liệu người dùng: {response_json}</red>")
                 return None
 
     def generate_random_color(self):
@@ -88,9 +96,10 @@ class Tapper:
     def generate_random_pos(self):
         return randint(1, 1000000)
 
-    def get_cor(self):
-        with open('bot/utils/3xdata.json', 'r') as file:
-            cor = json.load(file)
+    async def get_cor(self):
+        async with aiofiles.open('bot/utils/3xdata.json', 'r') as file:
+            cor = await file.read()
+            cor = json.loads(cor)
 
         paint = random.choice(cor['data'])
         color = paint['color']
@@ -152,15 +161,7 @@ class Tapper:
                         f"{self.session_name} | <green>Đã vẽ <cyan>{data[1]}</cyan> thành công với màu mới: <cyan>{data1[0]}</cyan> | Đã kiếm được <light-blue>{int(response_json['balance']) - int(self.balance)}</light-blue> | Số dư: <light-blue>{response_json['balance']}</light-blue> | Còn lại: <yellow>{chance_left}</yellow></green>")
                     self.balance = int(response_json['balance'])
             else:
-                if await response.json()['error'] == "insufficient charges amount":
-                    logger.warning(f"{self.session_name} | <yellow>Hết lượt vẽ</yellow>")
-                else:
-                    logger.warning(f"{self.session_name} | <yellow>{await response.json()['error']}</yellow>")
-
-
-    # def auto_task(self, session: cloudscraper.CloudScraper):
-    #     pass
-
+                logger.warning(f"{self.session_name} | <yellow>{await response.text()}</yellow>")
 
     async def auto_upgrade_paint(self, session: aiohttp.ClientSession):
         async with session.get("https://notpx.app/api/v1/mining/boost/check/paintReward", headers=headers) as response:
@@ -188,13 +189,12 @@ class Tapper:
             else:
                 logger.warning(f"{self.session_name} | <yellow>Failed to claim px from mining: {await response.text()}</yellow>")
 
-    async def get_data_async(self, query: str):
-    # Sử dụng asyncio.to_thread thay vì ThreadPoolExecutor để xử lý hàm đồng bộ trong thread khác
-        result = await asyncio.to_thread(get_data, query)
-        return result
+    # async def get_data_async(self, query: str):
+    # # Sử dụng asyncio.to_thread thay vì ThreadPoolExecutor để xử lý hàm đồng bộ trong thread khác
+    #     result = await asyncio.to_thread(get_data, query)
+    #     return result
 
     async def run(self, proxy: str | None) -> None:
-        access_token_created_time = 0
         proxy_conn = ProxyConnector().from_url(proxy) if proxy else None
 
         # Sử dụng async with cho session và CloudflareScraper
@@ -210,15 +210,11 @@ class Tapper:
                         session.proxies = {proxy_type: proxy}
                         logger.info(f"{self.session_name} | bind with proxy ip: {proxy}")
 
-                token_live_time = randint(1000, 1500)
-
                 try:
-                    # Kiểm tra thời gian sống của token trước khi gọi API
-                    if time() - access_token_created_time >= token_live_time:
-                        processed_query = await self.get_data_async(self.query)
-                        headers['Authorization'] = f"initData {processed_query}"
-                        access_token_created_time = time()
-                        token_live_time = randint(1000, 1500)
+                    query = await get_data(self.query)
+                    if query:
+                        self.query = query
+                    headers['Authorization'] = f"initData {query}"
 
                     # Login và lấy dữ liệu user
                     if await self.login(session):
@@ -226,14 +222,14 @@ class Tapper:
                         if user:
                             await self.process_user(session, user)
                         else:
-                            logger.warning(f"{self.session_name} | <yellow>Failed to get user data!</yellow>")
+                            logger.warning(f"{self.session_name} | <yellow>Không thể lấy dữ liệu người dùng!</yellow>")
                     else:
-                        logger.warning(f"invalid query: <yellow>{self.query}</yellow>")
+                        logger.warning(f"{self.session_name} | <yellow>Đăng nhập không thành công query: {self.query}</yellow>")
 
                 except InvalidSession as error:
                     raise error
                 except Exception as error:
-                    logger.error(f"{self.session_name} | Unknown error: {error}")
+                    logger.error(f"{self.session_name} | Lỗi không xác định: {error}")
                     await asyncio.sleep(delay=randint(5, 10))
 
     async def process_user(self, session, user):
@@ -242,7 +238,7 @@ class Tapper:
         self.balance = int(user['userBalance'])
 
         logger.info(
-            f"{self.session_name} | Pixel Balance: <light-blue>{self.balance}</light-blue> | Pixel available to paint: <cyan>{user['charges']}</cyan>")
+            f"{self.session_name} | Số dư: <light-blue>{self.balance}</light-blue> | Lượt vẽ còn lại: <cyan>{user['charges']}</cyan>")
 
         if int(user['charges']) > 0:
             await self.handle_painting(session, user['charges'])
@@ -253,17 +249,14 @@ class Tapper:
 
     async def handle_painting(self, session, total_chance):
         i = 0
-        data = self.get_cor()
-        while total_chance > 0:
+        data = await self.get_cor()
+        while int(total_chance) > 0:
             total_chance -= 1
             i += 1
             if settings.X3POINTS:
                 await self.repaintV2(session, total_chance, i, data)
             else:
                 await self.repaint(session, total_chance)
-            # sleep_ = random.uniform(1, 3)
-            # logger.info(f"{self.session_name} | Nghỉ <cyan>{sleep_}</cyan> trước khi tiếp tục...")
-            # await asyncio.sleep(sleep_)
 
     async def handle_claim(self, session):
         r = random.uniform(2, 4)
@@ -274,9 +267,9 @@ class Tapper:
     async def check_tasks(self, session):
         if settings.AUTO_TASK:
             task_urls = [
-                ("https://notpx.app/api/v1/mining/task/check/x?name=notpixel", 1, "Task Not pixel on x completed!"),
-                ("https://notpx.app/api/v1/mining/task/check/x?name=notcoin", 2, "Task Not coin on x completed!"),
-                ("https://notpx.app/api/v1/mining/task/check/paint20pixels", 3, "Task paint 20 pixels completed!")
+                ("https://notpx.app/api/v1/mining/task/check/x?name=notpixel", 1, "Task Not pixel on x hoàn thành!"),
+                ("https://notpx.app/api/v1/mining/task/check/x?name=notcoin", 2, "Task Not coin on x hoàn thành!"),
+                ("https://notpx.app/api/v1/mining/task/check/paint20pixels", 3, "Task paint 20 pixels hoàn thành!")
             ]
             for url, index, success_msg in task_urls:
                 async with session.get(url, headers=headers) as response:
