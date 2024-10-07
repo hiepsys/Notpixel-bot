@@ -8,7 +8,6 @@ from bot.config import settings
 sys.path.append("..")
 from bot.utils.GPMLoginAPI import GPMLoginAPI
 from selenium import webdriver
-from selenium.webdriver.chrome import service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
@@ -24,13 +23,12 @@ async def run_in_executor(func, *args):
 # Keep the original synchronous version of get_data, which will be run in a separate thread
 def sync_get_data(profileId):
     api = GPMLoginAPI(settings.GPM_API_URL)
-    win_pos = f"{200*randint(1,20)},20"
+    win_pos = f"{100*randint(1,30)},10"
     startedResult = api.Start(profileId, win_size='500,700', win_scale='0.4', win_pos=win_pos)
     
     time.sleep(3)
 
     chrome_options = Options()
-    chrome_options.headless = True
     chrome_options.add_argument("--lang=en-US")
     chrome_options.add_experimental_option("debuggerAddress", startedResult["data"]["remote_debugging_address"])
     chrome_options.add_argument("--no-sandbox")
@@ -56,26 +54,26 @@ def sync_get_data(profileId):
         )
         refLink.click()
         time.sleep(2)
+        if settings.CHECK_BUTTON_LAUNCH_GAME:
+            buttons = [
+                ("START", '(//button[@class="btn-primary btn-transparent text-bold chat-input-control-button rp"]//span[text()="START"])[2]'),
+                ("PLAY NOW", '(//span[@class="reply-markup-button-text"])[1]'),
+                ("Launch", '//span[text()="Launch"]'),
+                ("Play", '//div[@class="new-message-bot-commands-view"]'),
+                ("Confirm", '//span[text()="Confirm"]')
+            ]
 
-        buttons = [
-            ("START", '(//button[@class="btn-primary btn-transparent text-bold chat-input-control-button rp"]//span[text()="START"])[2]'),
-            ("PLAY NOW", '(//span[@class="reply-markup-button-text"])[1]'),
-            ("Launch", '//span[text()="Launch"]'),
-            ("Play", '//div[@class="new-message-bot-commands-view"]'),
-            ("Confirm", '//span[text()="Confirm"]')
-        ]
-
-        for button_name, xpath in buttons:
-            try:
-                button = WebDriverWait(driver, 1).until(
-                    EC.presence_of_element_located((By.XPATH, xpath))
-                )
-                button.click()
-                print(f"Đã click nút {button_name}")
-            except (TimeoutException, NoSuchElementException):
-                pass
-            except Exception as e:
-                print(f"Lỗi khi xử lý nút {button_name}: {str(e)}")
+            for button_name, xpath in buttons:
+                try:
+                    button = WebDriverWait(driver, settings.TIME_OUT_CHECK_BUTTON_LAUNCH_GAME).until(
+                        EC.presence_of_element_located((By.XPATH, xpath))
+                    )
+                    button.click()
+                    print(f"Đã click nút {button_name}")
+                except (TimeoutException, NoSuchElementException):
+                    pass
+                except Exception as e:
+                    print(f"Lỗi khi xử lý nút {button_name}: {str(e)}")
 
     except Exception as e:
         logger.error(f"<red>Lỗi không xác định: {str(e)}</red>")
@@ -96,8 +94,12 @@ def sync_get_data(profileId):
     except TimeoutException:
         logger.error("<red>Không tìm thấy iframe payment-verification sau 60 giây</red>")
 
-    driver.close()
-    driver.quit()
+    try:
+        driver.close()
+        driver.quit()
+    except Exception as e:
+        logger.error(f"<red>Lỗi khi đóng trình duyệt: {str(e)}</red>")
+        api.Stop(profileId)
     return decoded_data
 
 # Create the asynchronous wrapper for get_data
