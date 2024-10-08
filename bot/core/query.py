@@ -71,7 +71,8 @@ class Tapper:
             logger.error(f"{self.session_name} | <red>Đăng nhập bị timeout. Thử lại...</red>")
             raise  # Raise lỗi để retry mechanism có thể bắt và thử lại
         except Exception as e:
-            logger.error(f"{self.session_name} | <red>Lỗi khi đăng nhập: {str(e)}</red>")
+            print(f"Lỗi khi đăng nhập: {str(e)}")
+            logger.error(f"{self.session_name} | <red>Lỗi khi đăng nhập</red>")
             raise  # Raise lỗi để retry mechanism có thể bắt và thử lại
 
     async def get_user_data(self, session: aiohttp.ClientSession):

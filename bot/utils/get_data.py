@@ -76,7 +76,8 @@ def sync_get_data(profileId):
                     print(f"Lỗi khi xử lý nút {button_name}: {str(e)}")
 
     except Exception as e:
-        logger.error(f"<red>Lỗi không xác định: {str(e)}</red>")
+        print(f"Lỗi không xác định: {str(e)}")
+        logger.error(f"<red>Lỗi không xác định</red>")
 
     try:
         iframe = WebDriverWait(driver, 60).until(
@@ -98,7 +99,8 @@ def sync_get_data(profileId):
         driver.close()
         driver.quit()
     except Exception as e:
-        logger.error(f"<red>Lỗi khi đóng trình duyệt: {str(e)}</red>")
+        print(f"Lỗi khi đóng trình duyệt: {str(e)}")
+        logger.error(f"<red>Lỗi khi đóng trình duyệt</red>")
         api.Stop(profileId)
     return decoded_data
 
