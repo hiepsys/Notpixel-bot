@@ -4,13 +4,8 @@ data.txt
 session/
 bot/config/proxies.txt
 bot/__pycache__/
-bot/__init__.py
 bot/utils/__pycache__/
-bot/utils/__init__.py
 bot/core/__pycache__/
-bot/core/__init__.py
 bot/config/__pycache__/
-bot/config/__init__.py
 bot/exceptions/__pycache__/
-bot/exceptions/__init__.py
 
