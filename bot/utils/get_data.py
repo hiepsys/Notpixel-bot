@@ -49,7 +49,7 @@ def sync_get_data(profileId):
     time.sleep(1)
     
     try:
-        refLink = WebDriverWait(driver, 60).until(
+        refLink = WebDriverWait(driver, 120).until(
             EC.element_to_be_clickable((By.XPATH, f'(//a[contains(@href,"https://t.me/{settings.BOT_NAME}")])[1]'))
         )
         refLink.click()
@@ -80,7 +80,7 @@ def sync_get_data(profileId):
         logger.error(f"<red>Lỗi không xác định</red>")
 
     try:
-        iframe = WebDriverWait(driver, 60).until(
+        iframe = WebDriverWait(driver, 120).until(
             EC.presence_of_element_located((By.XPATH, '//iframe[@class="payment-verification"]'))
         )
         iframe_src = iframe.get_attribute('src')
@@ -93,7 +93,7 @@ def sync_get_data(profileId):
         else:
             logger.error("<red>Không tìm thấy dữ liệu WebApp trong src của iframe</red>")
     except TimeoutException:
-        logger.error("<red>Không tìm thấy iframe payment-verification sau 60 giây</red>")
+        logger.error("<red>Không tìm thấy iframe payment-verification sau 120 giây</red>")
 
     try:
         driver.close()
