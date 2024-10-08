@@ -49,7 +49,7 @@ def sync_get_data(profileId):
     time.sleep(1)
     
     try:
-        refLink = WebDriverWait(driver, 120).until(
+        refLink = WebDriverWait(driver, 180).until(
             EC.element_to_be_clickable((By.XPATH, f'(//a[contains(@href,"https://t.me/{settings.BOT_NAME}")])[1]'))
         )
         refLink.click()
@@ -76,8 +76,16 @@ def sync_get_data(profileId):
                     print(f"Lỗi khi xử lý nút {button_name}: {str(e)}")
 
     except Exception as e:
-        print(f"Lỗi không xác định: {str(e)}")
-        logger.error(f"<red>Lỗi không xác định</red>")
+        print(f"Lỗi không tìm thấy nút bắt đầu game: {str(e)}")
+        logger.error(f"<red>Lỗi không tìm thấy nút bắt đầu game sau 180 giây</red>")
+        try:
+            driver.close()
+            driver.quit()
+        except Exception as e:
+            print(f"Lỗi khi đóng trình duyệt: {str(e)}")
+            logger.error(f"<red>Lỗi khi đóng trình duyệt</red>")
+            api.Stop(profileId)
+        return False
 
     try:
         iframe = WebDriverWait(driver, 120).until(
