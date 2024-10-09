@@ -238,17 +238,33 @@ class Tapper:
     async def check_tasks(self, session):
         if settings.AUTO_TASK:
             task_urls = [
-                ("https://notpx.app/api/v1/mining/task/check/x?name=notpixel", 1, "Task Not pixel on x hoàn thành!"),
-                ("https://notpx.app/api/v1/mining/task/check/x?name=notcoin", 2, "Task Not coin on x hoàn thành!"),
-                ("https://notpx.app/api/v1/mining/task/check/paint20pixels", 3, "Task paint 20 pixels hoàn thành!")
+                # ("https://notpx.app/api/v1/mining/task/check/x?name=notpixel", 1, "Task Not pixel on x hoàn thành!"),
+                # ("https://notpx.app/api/v1/mining/task/check/x?name=notcoin", 2, "Task Not coin on x hoàn thành!"),
+                # ("https://notpx.app/api/v1/mining/task/check/paint20pixels", 3, "Task paint 20 pixels hoàn thành!")
+                ("https://notpx.app/api/v1/mining/task/check/leagueBonusSilver", 4, "Task check bonus Silver hoàn thành!"),
+                ("https://notpx.app/api/v1/mining/task/check/leagueBonusGold", 5, "Task check bonus Gold hoàn thành!"),
+                ("https://notpx.app/api/v1/mining/task/check/leagueBonusPlatinum", 6, "Task check bonus Platinum hoàn thành!")
             ]
             for url, index, success_msg in task_urls:
                 async with session.get(url, headers=self.headers) as response:
                     if response.status == 200:
                         response_json = await response.json()
-                        if response_json.get(f'x:notpixel', False) and not self.checked[index]:
-                            self.checked[index] = True
-                            logger.success(f"<green>{success_msg}</green>")
+                        try:
+                            league_bonuses = ["leagueBonusSilver", "leagueBonusGold", "leagueBonusPlatinum"]
+                            for bonus in league_bonuses:
+                                if bonus not in response_json:
+                                    pass
+                                elif response_json[bonus]:
+                                    if bonus == "leagueBonusSilver" and index == 4:
+                                        logger.success(f"<green>{success_msg}</green>")
+                                    elif bonus == "leagueBonusGold" and index == 5:
+                                        logger.success(f"<green>{success_msg}</green>")
+                                    elif bonus == "leagueBonusPlatinum" and index == 6:
+                                        logger.success(f"<green>{success_msg}</green>")
+                        except KeyError as e:
+                            print(str(e))
+                            logger.error(f"{self.session_name} | Lỗi khi truy cập dữ liệu")
+                        await asyncio.sleep(random.uniform(2, 5))
 
     async def auto_upgrade_tasks(self, session):
         if settings.AUTO_UPGRADE_PAINT_REWARD:
