@@ -38,6 +38,7 @@ class Tapper:
         self.session_name = session_name
         self.charges = 0
         self.balance = 0
+        self.tasks = None
         self.headers = copy.deepcopy(headers)  # Tạo bản sao của headers chung
         self.setup_headers()
 
@@ -212,6 +213,7 @@ class Tapper:
         user_data = await self.get_user_data(session)
         self.balance = int(user_data.get('userBalance', 0))
         self.charges = int(user_data.get('charges', 0))
+        self.tasks = user_data.get('tasks', None)
         logger.info(f"{self.session_name} | Số dư: <light-blue>{self.balance}</light-blue> | Lượt vẽ còn lại: <cyan>{self.charges}</cyan>")
 
         i = 0
@@ -238,29 +240,32 @@ class Tapper:
     async def check_tasks(self, session):
         if settings.AUTO_TASK:
             task_urls = [
-                # ("https://notpx.app/api/v1/mining/task/check/x?name=notpixel", 1, "Task Not pixel on x hoàn thành!"),
-                # ("https://notpx.app/api/v1/mining/task/check/x?name=notcoin", 2, "Task Not coin on x hoàn thành!"),
-                # ("https://notpx.app/api/v1/mining/task/check/paint20pixels", 3, "Task paint 20 pixels hoàn thành!")
-                # ("https://notpx.app/api/v1/mining/task/check/leagueBonusSilver", 4, "Task check bonus Silver hoàn thành!"),
-                # ("https://notpx.app/api/v1/mining/task/check/leagueBonusGold", 5, "Task check bonus Gold hoàn thành!"),
-                # ("https://notpx.app/api/v1/mining/task/check/leagueBonusPlatinum", 6, "Task check bonus Platinum hoàn thành!")
-                ("https://notpx.app/api/v1/mining/task/check/jettonTask", 7, "Task Jetton hoàn thành!")
+                ("https://notpx.app/api/v1/mining/task/check/x?name=notpixel", "Task Not pixel on x hoàn thành!", self.tasks['x:notpixel']),
+                ("https://notpx.app/api/v1/mining/task/check/x?name=notcoin", "Task Not coin on x hoàn thành!", self.tasks['x:notcoin']),
+                ("https://notpx.app/api/v1/mining/task/check/paint20pixels", "Task paint 20 pixels hoàn thành!", self.tasks['paint20pixels']),
+                ("https://notpx.app/api/v1/mining/task/check/leagueBonusSilver", "Task check bonus Silver hoàn thành!", self.tasks['leagueBonusSilver']),
+                ("https://notpx.app/api/v1/mining/task/check/leagueBonusGold", "Task check bonus Gold hoàn thành!", self.tasks['leagueBonusGold']),
+                ("https://notpx.app/api/v1/mining/task/check/leagueBonusPlatinum", "Task check bonus Platinum hoàn thành!", self.tasks['leagueBonusPlatinum'])
+                ("https://notpx.app/api/v1/mining/task/check/jettonTask", "Task Jetton hoàn thành!", self.tasks['jettonTask'])
             ]
-            for url, index, success_msg in task_urls:
-                async with session.get(url, headers=self.headers) as response:
-                    if response.status == 200:
-                        response_json = await response.json()
-                        try:
-                            league_bonuses = ["leagueBonusSilver", "leagueBonusGold", "leagueBonusPlatinum", "jettonTask"]
-                            for bonus in league_bonuses:
-                                if bonus not in response_json:
-                                    pass
-                                elif response_json[bonus]:
-                                    logger.success(f"<green>{success_msg}</green>")
-                        except KeyError as e:
-                            print(str(e))
-                            logger.error(f"{self.session_name} | Lỗi khi truy cập dữ liệu")
-                        await asyncio.sleep(random.uniform(2, 5))
+            for url, success_msg, check in task_urls:
+                if check:
+                    pass
+                else:
+                    async with session.get(url, headers=self.headers) as response:
+                        if response.status == 200:
+                            response_json = await response.json()
+                            try:
+                                league_bonuses = ["leagueBonusSilver", "leagueBonusGold", "leagueBonusPlatinum", "jettonTask", "x:notpixel", "x:notcoin", "paint20pixels"]
+                                for bonus in league_bonuses:
+                                    if bonus not in response_json:
+                                        pass
+                                    elif response_json[bonus]:
+                                        logger.success(f"<green>{success_msg}</green>")
+                            except KeyError as e:
+                                print(str(e))
+                                logger.error(f"{self.session_name} | Lỗi khi truy cập dữ liệu")
+                            await asyncio.sleep(random.uniform(2, 5))
 
     async def auto_upgrade_tasks(self, session):
         if settings.AUTO_UPGRADE_PAINT_REWARD:
