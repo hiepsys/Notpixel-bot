@@ -241,26 +241,22 @@ class Tapper:
                 # ("https://notpx.app/api/v1/mining/task/check/x?name=notpixel", 1, "Task Not pixel on x hoàn thành!"),
                 # ("https://notpx.app/api/v1/mining/task/check/x?name=notcoin", 2, "Task Not coin on x hoàn thành!"),
                 # ("https://notpx.app/api/v1/mining/task/check/paint20pixels", 3, "Task paint 20 pixels hoàn thành!")
-                ("https://notpx.app/api/v1/mining/task/check/leagueBonusSilver", 4, "Task check bonus Silver hoàn thành!"),
-                ("https://notpx.app/api/v1/mining/task/check/leagueBonusGold", 5, "Task check bonus Gold hoàn thành!"),
-                ("https://notpx.app/api/v1/mining/task/check/leagueBonusPlatinum", 6, "Task check bonus Platinum hoàn thành!")
+                # ("https://notpx.app/api/v1/mining/task/check/leagueBonusSilver", 4, "Task check bonus Silver hoàn thành!"),
+                # ("https://notpx.app/api/v1/mining/task/check/leagueBonusGold", 5, "Task check bonus Gold hoàn thành!"),
+                # ("https://notpx.app/api/v1/mining/task/check/leagueBonusPlatinum", 6, "Task check bonus Platinum hoàn thành!")
+                ("https://notpx.app/api/v1/mining/task/check/jettonTask", 7, "Task Jetton hoàn thành!")
             ]
             for url, index, success_msg in task_urls:
                 async with session.get(url, headers=self.headers) as response:
                     if response.status == 200:
                         response_json = await response.json()
                         try:
-                            league_bonuses = ["leagueBonusSilver", "leagueBonusGold", "leagueBonusPlatinum"]
+                            league_bonuses = ["leagueBonusSilver", "leagueBonusGold", "leagueBonusPlatinum", "jettonTask"]
                             for bonus in league_bonuses:
                                 if bonus not in response_json:
                                     pass
                                 elif response_json[bonus]:
-                                    if bonus == "leagueBonusSilver" and index == 4:
-                                        logger.success(f"<green>{success_msg}</green>")
-                                    elif bonus == "leagueBonusGold" and index == 5:
-                                        logger.success(f"<green>{success_msg}</green>")
-                                    elif bonus == "leagueBonusPlatinum" and index == 6:
-                                        logger.success(f"<green>{success_msg}</green>")
+                                    logger.success(f"<green>{success_msg}</green>")
                         except KeyError as e:
                             print(str(e))
                             logger.error(f"{self.session_name} | Lỗi khi truy cập dữ liệu")
