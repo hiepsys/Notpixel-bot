@@ -38,7 +38,15 @@ class Tapper:
         self.session_name = session_name
         self.charges = 0
         self.balance = 0
-        self.tasks = None
+        self.tasks = {
+            "x:notpixel": False,
+            "x:notcoin": False,
+            "paint20pixels": False,
+            "leagueBonusSilver": False,
+            "leagueBonusGold": False,
+            "leagueBonusPlatinum": False,
+            "jettonTask": False
+        }
         self.headers = copy.deepcopy(headers)  # Tạo bản sao của headers chung
         self.setup_headers()
 
@@ -213,7 +221,16 @@ class Tapper:
         user_data = await self.get_user_data(session)
         self.balance = int(user_data.get('userBalance', 0))
         self.charges = int(user_data.get('charges', 0))
-        self.tasks = user_data.get('tasks', None)
+        
+        # Cập nhật các task có thay đổi
+        new_tasks = user_data.get('tasks', {})
+        for task, status in new_tasks.items():
+            if task in self.tasks:
+                if self.tasks[task] != status:
+                    self.tasks[task] = status
+            else:
+                self.tasks[task] = status
+        
         logger.info(f"{self.session_name} | Số dư: <light-blue>{self.balance}</light-blue> | Lượt vẽ còn lại: <cyan>{self.charges}</cyan>")
 
         i = 0
@@ -245,7 +262,7 @@ class Tapper:
                 ("https://notpx.app/api/v1/mining/task/check/paint20pixels", "Task paint 20 pixels hoàn thành!", self.tasks['paint20pixels']),
                 ("https://notpx.app/api/v1/mining/task/check/leagueBonusSilver", "Task check bonus Silver hoàn thành!", self.tasks['leagueBonusSilver']),
                 ("https://notpx.app/api/v1/mining/task/check/leagueBonusGold", "Task check bonus Gold hoàn thành!", self.tasks['leagueBonusGold']),
-                ("https://notpx.app/api/v1/mining/task/check/leagueBonusPlatinum", "Task check bonus Platinum hoàn thành!", self.tasks['leagueBonusPlatinum'])
+                ("https://notpx.app/api/v1/mining/task/check/leagueBonusPlatinum", "Task check bonus Platinum hoàn thành!", self.tasks['leagueBonusPlatinum']),
                 ("https://notpx.app/api/v1/mining/task/check/jettonTask", "Task Jetton hoàn thành!", self.tasks['jettonTask'])
             ]
             for url, success_msg, check in task_urls:
